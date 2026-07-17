@@ -1,63 +1,266 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useMemo, useEffect } from "react";
+import {
+  Filter,
+  Factory,
+  Activity,
+  AlertTriangle,
+  ChevronDown,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import Header from "@/components/Header";
+import KpiCards from "@/components/KpiCards";
+import AssetTable from "@/components/AssetTable";
+import AssetDetailPanel from "@/components/AssetDetail";
+import TrendChart from "@/components/TrendChart";
+import AnomalyHighlights from "@/components/AnomalyHighlights";
+import CopilotRecommend from "@/components/CopilotRecommend";
+import CopilotChat from "@/components/CopilotChat";
+import {
+  useAssets,
+  useAssetDetail,
+  useTrend,
+  useAnomalies,
+} from "@/lib/hooks";
+import type { KpiData } from "@/lib/types";
+
+const MACHINE_TYPES = ["All", "furnace", "conveyor", "motor", "slurry_pump"];
+const HEALTH_STATUSES = ["All", "HEALTHY", "WARNING", "CRITICAL"];
 
 export default function Home() {
+  const [lastRefresh, setLastRefresh] = useState<string>(
+    new Date().toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  );
+  const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Filter state
+  const [machineType, setMachineType] = useState("All");
+  const [healthStatus, setHealthStatus] = useState("All");
+  const [anomalyOnly, setAnomalyOnly] = useState(false);
+
+  // Selected machine
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Expand state for copilot panels
+  const [recommendExpanded, setRecommendExpanded] = useState(false);
+  const [chatExpanded, setChatExpanded] = useState(false);
+
+  // Data hooks
+  const { data: assetsData, loading: assetsLoading } = useAssets(refreshKey);
+  const { data: detailData, loading: detailLoading } = useAssetDetail(
+    selectedId,
+    refreshKey
+  );
+  const { data: trendData, loading: trendLoading } = useTrend(
+    selectedId,
+    refreshKey
+  );
+  const { data: anomalyData, loading: anomalyLoading } =
+    useAnomalies(refreshKey);
+
+  // Apply filters to assets
+  const filteredAssets = useMemo(() => {
+    return assetsData.filter((a) => {
+      if (machineType !== "All" && a.MACHINE_TYPE !== machineType) return false;
+      if (healthStatus !== "All" && a.HEALTH_STATUS !== healthStatus)
+        return false;
+      if (anomalyOnly && !a.IS_ANOMALY) return false;
+      return true;
+    });
+  }, [assetsData, machineType, healthStatus, anomalyOnly]);
+
+  // Compute KPI from filtered assets so cards respond to filters
+  const filteredKpi = useMemo<KpiData>(() => {
+    const total = filteredAssets.length;
+    const healthy = filteredAssets.filter((a) => a.HEALTH_STATUS === "HEALTHY").length;
+    const warning = filteredAssets.filter((a) => a.HEALTH_STATUS === "WARNING").length;
+    const critical = filteredAssets.filter((a) => a.HEALTH_STATUS === "CRITICAL").length;
+    const anomalies = filteredAssets.filter((a) => a.IS_ANOMALY).length;
+    const avgHealth = total > 0
+      ? Math.round(filteredAssets.reduce((s, a) => s + a.HEALTH_PCT, 0) / total)
+      : 0;
+    return {
+      avgHealth,
+      healthyCount: healthy,
+      warningCount: warning,
+      criticalCount: critical,
+      totalMachines: total,
+      anomalyCount: anomalies,
+      totalReadings: total,
+    };
+  }, [filteredAssets]);
+
+  // Auto-select: prioritize anomalous machine, fallback to lowest health
+  useEffect(() => {
+    if (!selectedId && assetsData.length > 0) {
+      const anomalous = assetsData.find((a) => a.IS_ANOMALY);
+      if (anomalous) {
+        setSelectedId(anomalous.MACHINE_ID);
+      } else {
+        const lowest = [...assetsData].sort((a, b) => a.HEALTH_PCT - b.HEALTH_PCT)[0];
+        if (lowest) setSelectedId(lowest.MACHINE_ID);
+      }
+    }
+  }, [assetsData, selectedId]);
+
+  function handleRefresh() {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+    setTimeout(() => {
+      setLastRefresh(
+        new Date().toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      );
+      setLoading(false);
+    }, 600);
+  }
+
+  const activeFilterCount = [
+    machineType !== "All",
+    healthStatus !== "All",
+    anomalyOnly,
+  ].filter(Boolean).length;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="flex h-screen flex-col overflow-hidden">
+      <Header
+        lastRefresh={lastRefresh}
+        onRefresh={handleRefresh}
+        loading={loading}
+      />
+      <main className="flex flex-1 overflow-hidden gap-4 p-4">
+        {/* Dashboard Monitoring - left */}
+        <div className="flex-1 flex flex-col overflow-hidden rounded-xl border border-border bg-surface/40">
+          {/* Filter Bar */}
+          <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+            <div className="flex items-center gap-2 text-muted">
+              <Filter size={16} />
+              <span className="text-xs font-medium">Filters</span>
+            </div>
+
+            {/* Machine Type */}
+            <div className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5">
+              <Factory size={14} className="text-muted" />
+              <select
+                value={machineType}
+                onChange={(e) => setMachineType(e.target.value)}
+                className="bg-transparent text-xs font-medium text-foreground outline-none cursor-pointer"
+              >
+                {MACHINE_TYPES.map((t) => (
+                  <option key={t} value={t} className="bg-surface-2">
+                    {t === "All" ? "All Types" : t}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="text-muted" />
+            </div>
+
+            {/* Health Status */}
+            <div className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5">
+              <Activity size={14} className="text-muted" />
+              <select
+                value={healthStatus}
+                onChange={(e) => setHealthStatus(e.target.value)}
+                className="bg-transparent text-xs font-medium text-foreground outline-none cursor-pointer"
+              >
+                {HEALTH_STATUSES.map((s) => (
+                  <option key={s} value={s} className="bg-surface-2">
+                    {s === "All" ? "All Status" : s}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="text-muted" />
+            </div>
+
+            {/* Anomaly Only Toggle */}
+            <button
+              onClick={() => setAnomalyOnly(!anomalyOnly)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                anomalyOnly
+                  ? "border-warning/50 bg-warning/15 text-warning"
+                  : "border-border bg-surface-2 text-muted hover:text-foreground"
+              )}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              <AlertTriangle size={14} />
+              Anomaly Only
+            </button>
+
+            <div className="flex-1" />
+
+            <span className="text-[11px] text-muted">
+              {activeFilterCount > 0
+                ? `${activeFilterCount} filter(s) active`
+                : "No filters"}
+            </span>
+          </div>
+
+          {/* Dashboard Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* KPI Cards */}
+            <KpiCards data={filteredKpi} loading={assetsLoading} />
+
+            {/* Asset Table */}
+            <AssetTable
+              assets={filteredAssets}
+              loading={assetsLoading}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+            {/* Detail + Trend side by side */}
+            <div className="grid grid-cols-2 gap-4">
+              <AssetDetailPanel data={detailData} loading={detailLoading} />
+              <TrendChart
+                data={trendData}
+                loading={trendLoading}
+                machineId={selectedId}
+              />
+            </div>
+
+            {/* Anomaly Highlights */}
+            <AnomalyHighlights
+              anomalies={anomalyData}
+              loading={anomalyLoading}
+              onSelect={setSelectedId}
+            />
+          </div>
+        </div>
+
+        {/* AI Copilot Panel - right */}
+        <div className="w-[380px] shrink-0 flex flex-col gap-4 overflow-hidden">
+          {/* Auto AI Copilot Recommendation */}
+          <CopilotRecommend
+            machineId={selectedId}
+            isAnomaly={
+              assetsData.find((a) => a.MACHINE_ID === selectedId)?.IS_ANOMALY ??
+              false
+            }
+            refreshKey={refreshKey}
+            expanded={recommendExpanded}
+            onExpand={() => setRecommendExpanded(true)}
+            onClose={() => setRecommendExpanded(false)}
+          />
+          {/* Q&A Chat */}
+          <CopilotChat
+            machineId={selectedId}
+            expanded={chatExpanded}
+            onExpand={() => setChatExpanded(true)}
+            onClose={() => setChatExpanded(false)}
+          />
         </div>
       </main>
     </div>
