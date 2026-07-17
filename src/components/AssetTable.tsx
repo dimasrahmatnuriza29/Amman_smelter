@@ -286,6 +286,46 @@ export default function AssetTable({
                         </button>
                       )}
                     </div>
+                  ) : asset.ANOMALY_HISTORY_COUNT > 0 ? (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setHistoryPopup({
+                          machineId: asset.MACHINE_ID,
+                          machineType: asset.MACHINE_TYPE,
+                          anomalyCount: asset.ANOMALY_HISTORY_COUNT,
+                          tempCount: asset.TEMP_ANOMALY_COUNT,
+                          vibCount: asset.VIB_ANOMALY_COUNT,
+                          pressCount: asset.PRESS_ANOMALY_COUNT,
+                          firstAnomaly: asset.FIRST_ANOMALY_TS,
+                          lastAnomaly: asset.LAST_ANOMALY_TS,
+                          healthPct: asset.HEALTH_PCT,
+                          healthStatus: asset.HEALTH_STATUS,
+                        });
+                        setHistoryEvents([]);
+                        setHistoryLoading(true);
+                        try {
+                          const params = new URLSearchParams({ machineId: asset.MACHINE_ID });
+                          if (filterMonth) params.set("month", String(filterMonth));
+                          if (filterYear) params.set("year", String(filterYear));
+                          params.set("limit", "500");
+                          const res = await fetch(`/api/assets/history?${params}`);
+                          if (res.ok) {
+                            const data = await res.json();
+                            setHistoryEvents(data);
+                          }
+                        } catch (err) {
+                          console.error("Failed to load history events:", err);
+                        } finally {
+                          setHistoryLoading(false);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning hover:bg-warning/20 transition-colors"
+                      title="Had anomalies earlier in this period — click for history"
+                    >
+                      <History size={12} />
+                      {asset.ANOMALY_HISTORY_COUNT} past
+                    </button>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[11px] text-muted">
                       <span className="h-1.5 w-1.5 rounded-full bg-success/50" />

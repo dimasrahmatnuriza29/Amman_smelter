@@ -145,6 +145,7 @@ export async function GET(req: Request) {
           MIN(CASE WHEN a.IS_ANOMALY = TRUE THEN TO_TIMESTAMP(a.TIMESTAMP / 1000000000) END) AS FIRST_ANOMALY_TS,
           MAX(CASE WHEN a.IS_ANOMALY = TRUE THEN TO_TIMESTAMP(a.TIMESTAMP / 1000000000) END) AS LAST_ANOMALY_TS
         FROM POC_AMMAN.GOLD.FACT_ANOMALY_DETECTION a
+        WHERE 1=1 ${anomConditions.length > 0 ? "AND " + anomConditions.join(" AND ") : ""}
         GROUP BY a.MACHINE_ID
       )
       SELECT
@@ -180,7 +181,7 @@ export async function GET(req: Request) {
       ORDER BY l.HEALTH_PCT ASC
     `;
 
-    const allBinds = [...binds, ...maxTsBinds, ...pastBinds, ...anomBinds];
+    const allBinds = [...binds, ...maxTsBinds, ...pastBinds, ...anomBinds, ...anomBinds];
     const assets = await querySnowflake<AssetRow>(sql, allBinds);
 
     return NextResponse.json(assets);
