@@ -16,7 +16,7 @@ let cached: PdfJson | null = null;
 
 function loadPdfJson(): PdfJson {
   if (cached) return cached;
-  const filePath = join(process.cwd(), "..", "data", "troubleshooting_guide.json");
+  const filePath = join(process.cwd(), "data", "troubleshooting_guide.json");
   const raw = readFileSync(filePath, "utf-8");
   cached = JSON.parse(raw) as PdfJson;
   return cached;
