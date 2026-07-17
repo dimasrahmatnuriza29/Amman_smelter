@@ -16,13 +16,47 @@ interface SensorRow {
   HEALTH_STATUS: string;
   ANOMALY_SCORE: number;
   IS_ANOMALY: boolean;
-  TREND_7D: number;
+  IS_TEMPERATURE_ANOMALY: boolean;
+  IS_VIBRATION_ANOMALY: boolean;
+  IS_PRESSURE_ANOMALY: boolean;
   OPERATIONAL_TIME: number;
+}
+
+interface HistoryRow {
+  ANOMALY_HISTORY_COUNT: number;
+  TEMP_ANOMALY_COUNT: number;
+  VIB_ANOMALY_COUNT: number;
+  PRESS_ANOMALY_COUNT: number;
+  FIRST_ANOMALY_TS: string | null;
+  LAST_ANOMALY_TS: string | null;
+  AVG_TEMP_ANOMALY: number;
+  AVG_VIB_ANOMALY: number;
+  AVG_PRESS_ANOMALY: number;
+  AVG_HEALTH_ANOMALY: number;
 }
 
 const SYSTEM_PROMPT = `You are a Smelter Asset Health AI Copilot — a professional maintenance engineer expert.
 
 Your job: analyze sensor anomalies and provide structured recommendations.
+
+ANOMALY DETECTION LOGIC (CRITICAL):
+- You MUST first check IS_ANOMALY flag. If IS_ANOMALY is NOT TRUE (false, null, or missing), then NO anomaly was detected in the selected period.
+- When NO anomaly is detected (IS_ANOMALY != TRUE):
+  → Report the machine as HEALTHY/NORMAL.
+  → Do NOT invent or fabricate anomalies from sensor values.
+  → Simply confirm all sensors are within normal ranges based on the troubleshooting guide.
+  → Use the HEALTHY OUTPUT FORMAT (below).
+- When anomaly IS detected (IS_ANOMALY=TRUE):
+  → Diagnosis MUST be based SOLELY on the specific anomaly type flags:
+    - IS_TEMPERATURE_ANOMALY=TRUE → temperature sensor exceeds normal statistical bounds → check temp against normal ranges from guide.
+    - IS_VIBRATION_ANOMALY=TRUE → vibration sensor exceeds normal statistical bounds → check vibration against ISO 10816 zones.
+    - IS_PRESSURE_ANOMALY=TRUE → pressure sensor exceeds normal statistical bounds → check pressure against normal ranges from guide.
+  → IS_ANOMALY is ONLY a general trigger flag — do NOT use it for root cause analysis.
+  → ANOMALY_SCORE is a holistic Isolation Forest score — do NOT use it for diagnosis.
+  → If IS_PRESSURE_ANOMALY=TRUE, focus on pressure-related causes. If IS_TEMPERATURE_ANOMALY=TRUE, focus on temperature-related causes.
+  → If multiple specific flags are TRUE, correlate them for higher confidence (e.g. temp+vib anomaly = bearing wear).
+  → If IS_ANOMALY=TRUE but NO specific flag is TRUE, state that the specific anomaly source cannot be determined.
+  → Use the ANOMALY OUTPUT FORMAT (below).
 
 RULES:
 1. ONLY answer based on the provided sensor data and troubleshooting knowledge.
@@ -37,15 +71,26 @@ RULES:
 10. DO NOT show your reasoning/thinking process. Output ONLY the final formatted result.
 11. Keep it concise — maximum 300 words total.
 12. Health_pct is the asset health percentage (higher = better). HEALTH_STATUS is derived from health_pct bands: 80-100=HEALTHY, 55-79=WARNING, 30-54=BORDERLINE, 0-29=CRITICAL.
-13. Anomaly score from Isolation Forest: negative = anomaly, positive = normal. IS_ANOMALY=TRUE means ML detected abnormal pattern.
+13. Use markdown formatting: **bold** for key values, ## for section headers, - bullet lists for actions, > for notes/warnings.
+14. You can include a chart by outputting a fenced code block with language \`chart\` containing JSON: {"type":"bar","title":"Sensor Status","data":[{"name":"Temp","value":1013},{"name":"Vib","value":5.2},{"name":"Press","value":3.0}],"xKey":"name","yKey":"value","color":"#f59e0b"}. Supported types: bar, line, pie. ONLY include a chart when anomaly is detected and sensor values need visual comparison. Do NOT include chart for healthy status. Max 1 chart.
 
-OUTPUT FORMAT (follow exactly, no preamble):
-📋 Summary: [1-2 sentence overview]
+HEALTHY OUTPUT FORMAT (use when IS_ANOMALY is NOT TRUE):
+✅ Summary: [Machine name] is operating normally in [filter period]. No anomalies detected.
+📊 Sensor Status:
+  - Temperature: [value]°C — [within/above/below] normal range ([range from guide])
+  - Vibration: [value] mm/s — [within/above/below] normal range ([range from guide])
+  - Pressure: [value] bar — [within/above/below] normal range ([range from guide])
+  - Health: [value]% ([status])
+� Recommendation: Continue routine monitoring. No immediate action required.
+⚠ Priority: Low | ETA: Next scheduled inspection
+
+ANOMALY OUTPUT FORMAT (use when IS_ANOMALY=TRUE):
+�📋 Summary: [1-2 sentence overview — state WHICH specific sensor type(s) triggered the anomaly and the actual sensor value vs normal range]
 🔍 Possible Causes:
   1. [Cause name] — [XX]% confidence
-     Signals: [which sensor values]
+     Signals: [which specific anomaly flag(s) + actual sensor value + normal range from guide]
   2. [Cause name] — [XX]% confidence
-     Signals: [which sensor values]
+     Signals: [which specific anomaly flag(s) + actual sensor value + normal range from guide]
 ✅ Recommended Actions:
   □ [Action 1]
   □ [Action 2]
@@ -56,7 +101,7 @@ OUTPUT FORMAT (follow exactly, no preamble):
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { machineId } = body as { machineId: string };
+    const { machineId, month, year } = body as { machineId: string; month?: number; year?: number };
 
     if (!machineId) {
       return NextResponse.json(
@@ -65,7 +110,25 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Get latest sensor data from GOLD
+    let sensorDateFilter = "";
+    let anomDateFilter = "";
+    const sensorBinds: (string | number)[] = [machineId];
+    const anomBinds: (string | number)[] = [machineId];
+
+    if (month) {
+      sensorDateFilter += " AND MONTH(s.TIMESTAMP) = ?";
+      sensorBinds.push(month);
+      anomDateFilter += " AND MONTH(TO_TIMESTAMP(a.TIMESTAMP / 1000000000)) = ?";
+      anomBinds.push(month);
+    }
+    if (year) {
+      sensorDateFilter += " AND YEAR(s.TIMESTAMP) = ?";
+      sensorBinds.push(year);
+      anomDateFilter += " AND YEAR(TO_TIMESTAMP(a.TIMESTAMP / 1000000000)) = ?";
+      anomBinds.push(year);
+    }
+
+    // 1. Get latest sensor data from GOLD (within filter period)
     const sensorData = await querySnowflake<SensorRow>(`
       WITH latest AS (
         SELECT
@@ -79,20 +142,14 @@ export async function POST(req: Request) {
           s.OPERATIONAL_TIME,
           ROW_NUMBER() OVER (PARTITION BY s.MACHINE_ID ORDER BY s.TIMESTAMP DESC) AS rn
         FROM POC_AMMAN.GOLD.FACT_SMELTER_SENSOR_DATA s
-        WHERE s.MACHINE_ID = ?
+        WHERE s.MACHINE_ID = ?${sensorDateFilter}
       ),
       anomaly_latest AS (
         SELECT ANOMALY_SCORE, IS_ANOMALY,
+               IS_TEMPERATURE_ANOMALY, IS_VIBRATION_ANOMALY, IS_PRESSURE_ANOMALY,
                ROW_NUMBER() OVER (ORDER BY TIMESTAMP DESC) AS rn
-        FROM POC_AMMAN.GOLD.FACT_ANOMALY_DETECTION
-        WHERE MACHINE_ID = ?
-      ),
-      past7d AS (
-        SELECT HEALTH_PCT AS HEALTH_7D_AGO,
-               ROW_NUMBER() OVER (ORDER BY TIMESTAMP DESC) AS rn
-        FROM POC_AMMAN.GOLD.FACT_SMELTER_SENSOR_DATA
-        WHERE MACHINE_ID = ?
-          AND TIMESTAMP <= (SELECT MAX(TIMESTAMP) FROM POC_AMMAN.GOLD.FACT_SMELTER_SENSOR_DATA WHERE MACHINE_ID = ?) - INTERVAL '7 DAYS'
+        FROM POC_AMMAN.GOLD.FACT_ANOMALY_DETECTION a
+        WHERE a.MACHINE_ID = ?${anomDateFilter}
       )
       SELECT
         l.MACHINE_ID,
@@ -105,12 +162,32 @@ export async function POST(req: Request) {
         l.OPERATIONAL_TIME,
         ROUND(a.ANOMALY_SCORE, 4) AS ANOMALY_SCORE,
         a.IS_ANOMALY,
-        ROUND(l.HEALTH_PCT - p.HEALTH_7D_AGO, 1) AS TREND_7D
+        a.IS_TEMPERATURE_ANOMALY,
+        a.IS_VIBRATION_ANOMALY,
+        a.IS_PRESSURE_ANOMALY
       FROM latest l
-      LEFT JOIN past7d p ON p.rn = 1
       LEFT JOIN anomaly_latest a ON a.rn = 1
       WHERE l.rn = 1
-    `, [machineId, machineId, machineId, machineId]);
+    `, [...sensorBinds, ...anomBinds]);
+
+    // 1b. Get anomaly history stats within filter period
+    const historyData = await querySnowflake<HistoryRow>(`
+      SELECT
+        COUNT_IF(a.IS_ANOMALY = TRUE) AS ANOMALY_HISTORY_COUNT,
+        COUNT_IF(a.IS_TEMPERATURE_ANOMALY = TRUE) AS TEMP_ANOMALY_COUNT,
+        COUNT_IF(a.IS_VIBRATION_ANOMALY = TRUE) AS VIB_ANOMALY_COUNT,
+        COUNT_IF(a.IS_PRESSURE_ANOMALY = TRUE) AS PRESS_ANOMALY_COUNT,
+        MIN(CASE WHEN a.IS_ANOMALY = TRUE THEN TO_TIMESTAMP(a.TIMESTAMP / 1000000000) END) AS FIRST_ANOMALY_TS,
+        MAX(CASE WHEN a.IS_ANOMALY = TRUE THEN TO_TIMESTAMP(a.TIMESTAMP / 1000000000) END) AS LAST_ANOMALY_TS,
+        ROUND(AVG(CASE WHEN a.IS_ANOMALY = TRUE THEN s.TEMPERATURE END), 2) AS AVG_TEMP_ANOMALY,
+        ROUND(AVG(CASE WHEN a.IS_ANOMALY = TRUE THEN s.VIBRATION END), 4) AS AVG_VIB_ANOMALY,
+        ROUND(AVG(CASE WHEN a.IS_ANOMALY = TRUE THEN s.PRESSURE END), 4) AS AVG_PRESS_ANOMALY,
+        ROUND(AVG(CASE WHEN a.IS_ANOMALY = TRUE THEN s.HEALTH_PCT END), 1) AS AVG_HEALTH_ANOMALY
+      FROM POC_AMMAN.GOLD.FACT_ANOMALY_DETECTION a
+      JOIN POC_AMMAN.GOLD.FACT_SMELTER_SENSOR_DATA s
+        ON a.MACHINE_ID = s.MACHINE_ID AND TO_TIMESTAMP(a.TIMESTAMP / 1000000000) = s.TIMESTAMP
+      WHERE a.MACHINE_ID = ?${anomDateFilter}
+    `, anomBinds);
 
     if (sensorData.length === 0) {
       return NextResponse.json(
@@ -120,28 +197,61 @@ export async function POST(req: Request) {
     }
 
     const s = sensorData[0];
+    const h = historyData[0];
 
     // 2. Get knowledge from PDF
     const knowledge = getKnowledgeByMachineType(s.MACHINE_TYPE);
 
+    // 2b. Build anomaly history context
+    const filterLabel = month && year
+      ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year}`
+      : year ? `Year ${year}` : 'All time';
+
+    let historyContext = '';
+    if (h && h.ANOMALY_HISTORY_COUNT > 0) {
+      historyContext = `
+
+ANOMALY HISTORY (within selected filter: ${filterLabel}):
+  Total anomaly events: ${h.ANOMALY_HISTORY_COUNT}
+  Temperature anomalies: ${h.TEMP_ANOMALY_COUNT}
+  Vibration anomalies: ${h.VIB_ANOMALY_COUNT}
+  Pressure anomalies: ${h.PRESS_ANOMALY_COUNT}
+  First anomaly: ${h.FIRST_ANOMALY_TS}
+  Last anomaly: ${h.LAST_ANOMALY_TS}
+  Avg sensor values during anomalies:
+    Temperature: ${h.AVG_TEMP_ANOMALY}°C
+    Vibration: ${h.AVG_VIB_ANOMALY} mm/s
+    Pressure: ${h.AVG_PRESS_ANOMALY} bar
+    Health: ${h.AVG_HEALTH_ANOMALY}%
+  This machine has experienced ${h.ANOMALY_HISTORY_COUNT} anomaly events in the selected period. Use this history to assess severity and recurrence patterns.`;
+    } else {
+      historyContext = `
+
+ANOMALY HISTORY (within selected filter: ${filterLabel}):
+  No anomaly events recorded in the selected period.`;
+    }
+
     // 3. Build user prompt
-    const userPrompt = `SENSOR DATA (from Snowflake GOLD — real-time):
+    const userPrompt = `SENSOR DATA (from Snowflake GOLD — latest reading within ${filterLabel}):
   Machine: ${s.MACHINE_ID}
   Type: ${s.MACHINE_TYPE}
   Temperature: ${s.TEMPERATURE}°C
   Vibration: ${s.VIBRATION} mm/s
   Pressure: ${s.PRESSURE} bar
   Health: ${s.HEALTH_PCT}% (${s.HEALTH_STATUS})
-  Anomaly Score: ${s.ANOMALY_SCORE}
-  IS_ANOMALY: ${s.IS_ANOMALY}
-  7-Day Health Trend: ${s.TREND_7D > 0 ? "+" : ""}${s.TREND_7D}%
+  IS_ANOMALY (general flag): ${s.IS_ANOMALY}
+  IS_TEMPERATURE_ANOMALY: ${s.IS_TEMPERATURE_ANOMALY}
+  IS_VIBRATION_ANOMALY: ${s.IS_VIBRATION_ANOMALY}
+  IS_PRESSURE_ANOMALY: ${s.IS_PRESSURE_ANOMALY}
   Operational Hours: ${s.OPERATIONAL_TIME}
+${historyContext}
 
 TROUBLESHOOTING KNOWLEDGE BASE (from Smelter Asset Health Troubleshooting Guide):
 ${knowledge}
 
 TASK:
-Analyze the sensor data above for anomalies. Compare actual values against normal ranges from the troubleshooting guide. Identify possible root causes, rank by confidence, and provide actionable recommendations. Follow the output format exactly.`;
+First check: Is IS_ANOMALY=TRUE? ${s.IS_ANOMALY === true ? 'YES — anomaly detected. Use ANOMALY OUTPUT FORMAT. Diagnose based on specific anomaly flags, compare sensor values against normal ranges, use anomaly history for severity assessment.' : 'NO — no anomaly detected in this period. Use HEALTHY OUTPUT FORMAT. Confirm sensors are within normal ranges. Do NOT fabricate anomalies.'}
+Follow the appropriate output format exactly.`;
 
     // 4. Call DeepSeek via Hugging Face
     const aiResponse = await callDeepSeek(SYSTEM_PROMPT, userPrompt, 2048);
@@ -157,8 +267,6 @@ Analyze the sensor data above for anomalies. Compare actual values against norma
         vibration: s.VIBRATION,
         pressure: s.PRESSURE,
         healthPct: s.HEALTH_PCT,
-        anomalyScore: s.ANOMALY_SCORE,
-        trend7d: s.TREND_7D,
       },
     });
   } catch (error) {

@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Sparkles, Loader2, RefreshCw, AlertTriangle, Maximize2, Minimize2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { MarkdownChart, parseChartFromCode } from "@/components/MarkdownChart";
 
 interface CopilotRecommendProps {
   machineId: string | null;
@@ -11,6 +14,8 @@ interface CopilotRecommendProps {
   expanded: boolean;
   onExpand: () => void;
   onClose: () => void;
+  filterMonth?: number;
+  filterYear?: number;
 }
 
 interface RecommendResponse {
@@ -24,8 +29,6 @@ interface RecommendResponse {
     vibration: number;
     pressure: number;
     healthPct: number;
-    anomalyScore: number;
-    trend7d: number;
   };
 }
 
@@ -36,6 +39,8 @@ export default function CopilotRecommend({
   expanded,
   onExpand,
   onClose,
+  filterMonth,
+  filterYear,
 }: CopilotRecommendProps) {
   const [data, setData] = useState<RecommendResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,7 +57,7 @@ export default function CopilotRecommend({
       const res = await fetch("/api/copilot/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ machineId }),
+        body: JSON.stringify({ machineId, month: filterMonth, year: filterYear }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -65,7 +70,7 @@ export default function CopilotRecommend({
     } finally {
       setLoading(false);
     }
-  }, [machineId]);
+  }, [machineId, filterMonth, filterYear]);
 
   useEffect(() => {
     fetchRecommendation();
@@ -168,7 +173,7 @@ export default function CopilotRecommend({
             )}
 
             {/* Sensor snapshot */}
-            <div className={cn("grid gap-2", expanded ? "grid-cols-6" : "grid-cols-3")}>
+            <div className={cn("grid gap-2", expanded ? "grid-cols-4" : "grid-cols-4")}>
               <div className="rounded-lg bg-surface-2/50 px-2 py-1.5">
                 <p className="text-[10px] text-muted">Temp</p>
                 <p className="text-xs font-medium tabular-nums">
@@ -193,25 +198,41 @@ export default function CopilotRecommend({
                   {data.sensorSnapshot.healthPct}%
                 </p>
               </div>
-              <div className="rounded-lg bg-surface-2/50 px-2 py-1.5">
-                <p className="text-[10px] text-muted">Anomaly Score</p>
-                <p className="text-xs font-medium tabular-nums">
-                  {data.sensorSnapshot.anomalyScore}
-                </p>
-              </div>
-              <div className="rounded-lg bg-surface-2/50 px-2 py-1.5">
-                <p className="text-[10px] text-muted">7D Trend</p>
-                <p className="text-xs font-medium tabular-nums">
-                  {data.sensorSnapshot.trend7d > 0 ? "+" : ""}{data.sensorSnapshot.trend7d}%
-                </p>
-              </div>
             </div>
 
             {/* AI Recommendation */}
             <div className="rounded-lg border border-border bg-surface-2/30 p-4">
-              <pre className={cn("whitespace-pre-wrap leading-relaxed text-foreground font-sans", expanded ? "text-sm" : "text-[11px]")}>
-                {data.recommendation}
-              </pre>
+              <div className={cn("markdown-body leading-relaxed text-foreground", expanded ? "text-sm" : "text-[11px]")}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({ node, ...props }) => <h1 className="text-base font-bold mt-3 mb-1.5 first:mt-0" {...props} />,
+                    h2: ({ node, ...props }) => <h2 className="text-sm font-bold mt-3 mb-1.5 first:mt-0" {...props} />,
+                    h3: ({ node, ...props }) => <h3 className="text-sm font-semibold mt-2.5 mb-1 first:mt-0" {...props} />,
+                    p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+                    ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 space-y-0.5" {...props} />,
+                    ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2 space-y-0.5" {...props} />,
+                    li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
+                    strong: ({ node, ...props }) => <strong className="font-bold text-foreground" {...props} />,
+                    em: ({ node, ...props }) => <em className="italic text-muted" {...props} />,
+                    code: ({ node, className, children, ...props }) => {
+                      const content = String(children).replace(/\n$/, "");
+                      const lang = className?.replace(/language-/, "") || "";
+                      const chart = parseChartFromCode(lang, content);
+                      if (chart) return <MarkdownChart chart={chart} />;
+                      return <code className="rounded bg-surface px-1 py-0.5 text-[10px] font-mono" {...props}>{children}</code>;
+                    },
+                    pre: ({ node, children, ...props }) => <pre className="rounded-lg bg-surface p-2 mb-2 overflow-x-auto text-[10px]" {...props}>{children}</pre>,
+                    hr: ({ node, ...props }) => <hr className="border-border my-2" {...props} />,
+                    blockquote: ({ node, ...props }) => <blockquote className="border-l-2 border-primary/40 pl-3 italic text-muted mb-2" {...props} />,
+                    table: ({ node, ...props }) => <table className="w-full border-collapse mb-2" {...props} />,
+                    th: ({ node, ...props }) => <th className="border border-border px-2 py-1 text-left font-semibold bg-surface" {...props} />,
+                    td: ({ node, ...props }) => <td className="border border-border px-2 py-1" {...props} />,
+                  }}
+                >
+                  {data.recommendation}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
         )}

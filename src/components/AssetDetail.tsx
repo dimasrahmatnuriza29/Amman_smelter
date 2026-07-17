@@ -6,8 +6,6 @@ import {
   Gauge,
   Clock,
   BatteryLow,
-  TrendingDown,
-  TrendingUp,
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -148,7 +146,7 @@ export default function AssetDetailPanel({ data, loading }: AssetDetailProps) {
       </div>
 
       {/* Secondary Metrics */}
-      <div className="mt-2 grid grid-cols-3 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <MetricCard
           icon={Clock}
           label="Op. Hours"
@@ -163,68 +161,52 @@ export default function AssetDetailPanel({ data, loading }: AssetDetailProps) {
           unit="days"
           color="text-purple"
         />
-        <div className="rounded-lg border border-border bg-surface-2/50 p-3">
-          <div className="flex items-center gap-1.5 text-muted">
-            {data.TREND_7D < 0 ? (
-              <TrendingDown size={14} className="text-danger" />
-            ) : (
-              <TrendingUp size={14} className="text-success" />
-            )}
-            <span className="text-[11px]">Trend</span>
-          </div>
-          <div className="mt-1 flex items-baseline gap-1">
-            <span
-              className={cn(
-                "text-lg font-semibold tabular-nums",
-                data.TREND_7D < 0 ? "text-danger" : "text-success"
-              )}
-            >
-              {data.TREND_7D > 0 ? "+" : ""}
-              {data.TREND_7D}%
-            </span>
+      </div>
+
+      {/* Anomaly Type Breakdown */}
+      {data.IS_ANOMALY && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-[11px] font-semibold text-muted uppercase tracking-wide">Anomaly Type</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className={cn("rounded-lg border px-3 py-2", data.IS_TEMPERATURE_ANOMALY ? "border-warning/30 bg-warning/5" : "border-border bg-surface-2/30")}>
+              <div className="flex items-center gap-1.5">
+                <Thermometer size={12} className={data.IS_TEMPERATURE_ANOMALY ? "text-warning" : "text-muted"} />
+                <span className="text-[10px] text-muted">Temp</span>
+              </div>
+              <p className={cn("mt-0.5 text-sm font-bold", data.IS_TEMPERATURE_ANOMALY ? "text-warning" : "text-muted")}>
+                {data.IS_TEMPERATURE_ANOMALY ? "Anomaly" : "Normal"}
+              </p>
+            </div>
+            <div className={cn("rounded-lg border px-3 py-2", data.IS_VIBRATION_ANOMALY ? "border-warning/30 bg-warning/5" : "border-border bg-surface-2/30")}>
+              <div className="flex items-center gap-1.5">
+                <Waves size={12} className={data.IS_VIBRATION_ANOMALY ? "text-warning" : "text-muted"} />
+                <span className="text-[10px] text-muted">Vib</span>
+              </div>
+              <p className={cn("mt-0.5 text-sm font-bold", data.IS_VIBRATION_ANOMALY ? "text-warning" : "text-muted")}>
+                {data.IS_VIBRATION_ANOMALY ? "Anomaly" : "Normal"}
+              </p>
+            </div>
+            <div className={cn("rounded-lg border px-3 py-2", data.IS_PRESSURE_ANOMALY ? "border-warning/30 bg-warning/5" : "border-border bg-surface-2/30")}>
+              <div className="flex items-center gap-1.5">
+                <Gauge size={12} className={data.IS_PRESSURE_ANOMALY ? "text-warning" : "text-muted"} />
+                <span className="text-[10px] text-muted">Press</span>
+              </div>
+              <p className={cn("mt-0.5 text-sm font-bold", data.IS_PRESSURE_ANOMALY ? "text-warning" : "text-muted")}>
+                {data.IS_PRESSURE_ANOMALY ? "Anomaly" : "Normal"}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Anomaly Alert Banner */}
       {data.IS_ANOMALY && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
           <AlertTriangle size={16} className="text-warning shrink-0" />
-          <div className="flex-1">
-            <span className="text-[11px] text-muted">Anomaly Score</span>
-            <p className="text-sm font-bold tabular-nums text-warning">{data.ANOMALY_SCORE}</p>
-          </div>
-          <span className="rounded bg-warning/20 px-2 py-0.5 text-[11px] font-bold text-warning">
-            ANOMALY DETECTED
-          </span>
+          <span className="text-sm font-bold text-warning">ANOMALY DETECTED</span>
         </div>
       )}
 
-      {/* Deviation + Anomaly Score */}
-      <div className="mt-2 flex items-center justify-between rounded-lg border border-border bg-surface-2/50 px-3 py-2">
-        <div className="flex items-center gap-4">
-          <div>
-            <span className="text-[11px] text-muted">Avg Deviation</span>
-            <p className="text-sm font-medium tabular-nums">
-              {data.AVG_DEVIATION_PCT}%
-            </p>
-          </div>
-          <div>
-            <span className="text-[11px] text-muted">Anomaly Score</span>
-            <p className={cn(
-              "text-sm font-medium tabular-nums",
-              data.IS_ANOMALY && "text-warning font-bold"
-            )}>
-              {data.ANOMALY_SCORE}
-            </p>
-          </div>
-        </div>
-        {!data.IS_ANOMALY && (
-          <span className="rounded bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success">
-            Normal
-          </span>
-        )}
-      </div>
     </div>
   );
 }

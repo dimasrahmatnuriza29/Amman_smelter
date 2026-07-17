@@ -22,11 +22,20 @@ import {
   useAssetDetail,
   useTrend,
   useAnomalies,
+  useKpi,
 } from "@/lib/hooks";
 import type { KpiData } from "@/lib/types";
 
 const MACHINE_TYPES = ["All", "furnace", "conveyor", "motor", "slurry_pump"];
 const HEALTH_STATUSES = ["All", "HEALTHY", "WARNING", "CRITICAL"];
+const MONTHS = [
+  { value: 0, label: "All Months" },
+  { value: 1, label: "Jan" }, { value: 2, label: "Feb" }, { value: 3, label: "Mar" },
+  { value: 4, label: "Apr" }, { value: 5, label: "May" }, { value: 6, label: "Jun" },
+  { value: 7, label: "Jul" }, { value: 8, label: "Aug" }, { value: 9, label: "Sep" },
+  { value: 10, label: "Oct" }, { value: 11, label: "Nov" }, { value: 12, label: "Dec" },
+];
+const YEARS = [0, 2024, 2025, 2026];
 
 export default function Home() {
   const [lastRefresh, setLastRefresh] = useState<string>(
@@ -45,6 +54,8 @@ export default function Home() {
   const [machineType, setMachineType] = useState("All");
   const [healthStatus, setHealthStatus] = useState("All");
   const [anomalyOnly, setAnomalyOnly] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(0);
+  const [selectedYear, setSelectedYear] = useState(2026);
 
   // Selected machine
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -53,18 +64,33 @@ export default function Home() {
   const [recommendExpanded, setRecommendExpanded] = useState(false);
   const [chatExpanded, setChatExpanded] = useState(false);
 
-  // Data hooks
-  const { data: assetsData, loading: assetsLoading } = useAssets(refreshKey);
+  // Data hooks — month and year filters work independently
+  const filterMonth = selectedMonth > 0 ? selectedMonth : undefined;
+  const filterYear = selectedYear > 0 ? selectedYear : undefined;
+  const { data: kpiData, loading: kpiLoading } = useKpi(
+    refreshKey,
+    filterMonth,
+    filterYear
+  );
+  const { data: assetsData, loading: assetsLoading } = useAssets(
+    refreshKey,
+    filterMonth,
+    filterYear
+  );
   const { data: detailData, loading: detailLoading } = useAssetDetail(
     selectedId,
-    refreshKey
+    refreshKey,
+    filterMonth,
+    filterYear
   );
   const { data: trendData, loading: trendLoading } = useTrend(
     selectedId,
-    refreshKey
+    refreshKey,
+    filterMonth,
+    filterYear
   );
   const { data: anomalyData, loading: anomalyLoading } =
-    useAnomalies(refreshKey);
+    useAnomalies(refreshKey, filterMonth, filterYear);
 
   // Apply filters to assets
   const filteredAssets = useMemo(() => {
@@ -132,6 +158,8 @@ export default function Home() {
     machineType !== "All",
     healthStatus !== "All",
     anomalyOnly,
+    selectedMonth > 0,
+    selectedYear > 0,
   ].filter(Boolean).length;
 
   return (
@@ -199,6 +227,40 @@ export default function Home() {
               Anomaly Only
             </button>
 
+            {/* Month Filter */}
+            <div className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5">
+              <Filter size={14} className="text-muted" />
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="bg-transparent text-xs font-medium text-foreground outline-none cursor-pointer"
+              >
+                {MONTHS.map((m) => (
+                  <option key={m.value} value={m.value} className="bg-surface-2">
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="text-muted" />
+            </div>
+
+            {/* Year Filter */}
+            <div className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5">
+              <span className="text-xs text-muted">Year</span>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="bg-transparent text-xs font-medium text-foreground outline-none cursor-pointer"
+              >
+                {YEARS.map((y) => (
+                  <option key={y} value={y} className="bg-surface-2">
+                    {y === 0 ? "All" : y}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="text-muted" />
+            </div>
+
             <div className="flex-1" />
 
             <span className="text-[11px] text-muted">
@@ -211,7 +273,7 @@ export default function Home() {
           {/* Dashboard Content */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {/* KPI Cards */}
-            <KpiCards data={filteredKpi} loading={assetsLoading} />
+            <KpiCards data={kpiData ?? filteredKpi} loading={kpiLoading || assetsLoading} />
 
             {/* Asset Table */}
             <AssetTable
@@ -219,10 +281,12 @@ export default function Home() {
               loading={assetsLoading}
               selectedId={selectedId}
               onSelect={setSelectedId}
+              filterMonth={filterMonth}
+              filterYear={filterYear}
             />
 
             {/* Detail + Trend side by side */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 items-stretch">
               <AssetDetailPanel data={detailData} loading={detailLoading} />
               <TrendChart
                 data={trendData}
@@ -236,6 +300,8 @@ export default function Home() {
               anomalies={anomalyData}
               loading={anomalyLoading}
               onSelect={setSelectedId}
+              filterMonth={filterMonth}
+              filterYear={filterYear}
             />
           </div>
         </div>
@@ -253,6 +319,8 @@ export default function Home() {
             expanded={recommendExpanded}
             onExpand={() => setRecommendExpanded(true)}
             onClose={() => setRecommendExpanded(false)}
+            filterMonth={filterMonth}
+            filterYear={filterYear}
           />
           {/* Q&A Chat */}
           <CopilotChat
@@ -260,6 +328,8 @@ export default function Home() {
             expanded={chatExpanded}
             onExpand={() => setChatExpanded(true)}
             onClose={() => setChatExpanded(false)}
+            filterMonth={filterMonth}
+            filterYear={filterYear}
           />
         </div>
       </main>

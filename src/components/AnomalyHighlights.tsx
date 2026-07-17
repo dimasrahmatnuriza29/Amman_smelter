@@ -23,12 +23,17 @@ interface AnomalyHighlightsProps {
   anomalies: AnomalySummary[];
   loading: boolean;
   onSelect: (machineId: string) => void;
+  filterMonth?: number;
+  filterYear?: number;
 }
 
 interface AnomalyEvent {
   TIMESTAMP: string;
   ANOMALY_SCORE: number;
   IS_ANOMALY: boolean;
+  IS_TEMPERATURE_ANOMALY: boolean;
+  IS_VIBRATION_ANOMALY: boolean;
+  IS_PRESSURE_ANOMALY: boolean;
   TEMPERATURE: number;
   VIBRATION: number;
   PRESSURE: number;
@@ -45,6 +50,9 @@ interface AnomalyStats {
   AVG_SCORE: number;
   LATEST_ANOMALY_TS: string;
   FIRST_ANOMALY_TS: string;
+  TEMP_ANOMALY_COUNT: number;
+  VIB_ANOMALY_COUNT: number;
+  PRESS_ANOMALY_COUNT: number;
   AVG_TEMP_ANOMALY: number;
   AVG_VIB_ANOMALY: number;
   AVG_PRESS_ANOMALY: number;
@@ -69,6 +77,9 @@ interface AnomalyDetailResponse {
     HEALTH_STATUS: string;
     ANOMALY_SCORE: number;
     IS_ANOMALY: boolean;
+    IS_TEMPERATURE_ANOMALY: boolean;
+    IS_VIBRATION_ANOMALY: boolean;
+    IS_PRESSURE_ANOMALY: boolean;
     TIMESTAMP: string;
   } | null;
 }
@@ -89,6 +100,8 @@ export default function AnomalyHighlights({
   anomalies,
   loading,
   onSelect,
+  filterMonth,
+  filterYear,
 }: AnomalyHighlightsProps) {
   const [popupMachine, setPopupMachine] = useState<string | null>(null);
   const [popupData, setPopupData] = useState<AnomalyDetailResponse | null>(null);
@@ -102,7 +115,11 @@ export default function AnomalyHighlights({
     setDetailLoading(true);
 
     try {
-      const res = await fetch(`/api/anomalies/${encodeURIComponent(machineId)}`);
+      const params = new URLSearchParams();
+      if (filterMonth) params.set("month", String(filterMonth));
+      if (filterYear) params.set("year", String(filterYear));
+      const qs = params.toString();
+      const res = await fetch(`/api/anomalies/${encodeURIComponent(machineId)}${qs ? `?${qs}` : ""}`);
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || `HTTP ${res.status}`);
@@ -178,6 +195,23 @@ export default function AnomalyHighlights({
                 <p className="text-[11px] text-muted">
                   <span className="capitalize">{a.MACHINE_TYPE}</span> · Latest: {a.LATEST_ANOMALY_TS ? formatTs(a.LATEST_ANOMALY_TS) : "—"}
                 </p>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  {a.TEMP_ANOMALY_COUNT > 0 && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-warning/80" title="Temperature anomalies">
+                      <Thermometer size={9} /> {a.TEMP_ANOMALY_COUNT}
+                    </span>
+                  )}
+                  {a.VIB_ANOMALY_COUNT > 0 && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-warning/80" title="Vibration anomalies">
+                      <Waves size={9} /> {a.VIB_ANOMALY_COUNT}
+                    </span>
+                  )}
+                  {a.PRESS_ANOMALY_COUNT > 0 && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-warning/80" title="Pressure anomalies">
+                      <Gauge size={9} /> {a.PRESS_ANOMALY_COUNT}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-sm font-bold tabular-nums text-warning">
@@ -267,12 +301,10 @@ export default function AnomalyHighlights({
                     <p className="mb-2 text-xs font-semibold text-muted uppercase tracking-wide">Current Status (Latest Reading)</p>
                     <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                       {[
-                        { icon: Thermometer, label: "Temperature", value: `${popupData.latest.TEMPERATURE}°C`, anomaly: popupData.latest.IS_ANOMALY },
-                        { icon: Waves, label: "Vibration", value: `${popupData.latest.VIBRATION}`, anomaly: popupData.latest.IS_ANOMALY },
-                        { icon: Gauge, label: "Pressure", value: `${popupData.latest.PRESSURE}`, anomaly: popupData.latest.IS_ANOMALY },
+                        { icon: Thermometer, label: "Temperature", value: `${popupData.latest.TEMPERATURE}°C`, anomaly: popupData.latest.IS_TEMPERATURE_ANOMALY },
+                        { icon: Waves, label: "Vibration", value: `${popupData.latest.VIBRATION}`, anomaly: popupData.latest.IS_VIBRATION_ANOMALY },
+                        { icon: Gauge, label: "Pressure", value: `${popupData.latest.PRESSURE}`, anomaly: popupData.latest.IS_PRESSURE_ANOMALY },
                         { icon: HeartPulse, label: "Health", value: `${popupData.latest.HEALTH_PCT}%`, anomaly: false },
-                        { icon: Activity, label: "Anomaly Score", value: `${popupData.latest.ANOMALY_SCORE}`, anomaly: popupData.latest.IS_ANOMALY },
-                        { icon: AlertTriangle, label: "Is Anomaly", value: popupData.latest.IS_ANOMALY ? "YES" : "NO", anomaly: popupData.latest.IS_ANOMALY },
                       ].map((s) => (
                         <div
                           key={s.label}
@@ -290,6 +322,27 @@ export default function AnomalyHighlights({
                           <p className={cn("mt-0.5 text-sm font-medium tabular-nums", s.anomaly && "text-warning")}>
                             {s.value}
                           </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Anomaly Type Breakdown */}
+                  <div>
+                    <p className="mb-2 text-xs font-semibold text-muted uppercase tracking-wide">Anomaly Type Breakdown</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { icon: Thermometer, label: "Temperature", count: popupData.stats.TEMP_ANOMALY_COUNT, total: popupData.stats.TOTAL_READINGS },
+                        { icon: Waves, label: "Vibration", count: popupData.stats.VIB_ANOMALY_COUNT, total: popupData.stats.TOTAL_READINGS },
+                        { icon: Gauge, label: "Pressure", count: popupData.stats.PRESS_ANOMALY_COUNT, total: popupData.stats.TOTAL_READINGS },
+                      ].map((t) => (
+                        <div key={t.label} className="rounded-lg border border-border bg-surface-2/50 px-3 py-2">
+                          <div className="flex items-center gap-1.5 text-muted">
+                            <t.icon size={12} />
+                            <p className="text-[10px]">{t.label}</p>
+                          </div>
+                          <p className="mt-0.5 text-sm font-bold tabular-nums text-warning">{t.count}</p>
+                          <p className="text-[10px] text-muted">{((t.count / t.total) * 100).toFixed(1)}% of readings</p>
                         </div>
                       ))}
                     </div>
@@ -337,9 +390,9 @@ export default function AnomalyHighlights({
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     {[
                       { label: "Anomaly Rate", value: `${popupData.stats.ANOMALY_PCT}%`, sub: `${popupData.stats.ANOMALY_COUNT} of ${popupData.stats.TOTAL_READINGS.toLocaleString()}` },
-                      { label: "Max Score", value: `${popupData.stats.MAX_SCORE}`, sub: "Most extreme" },
-                      { label: "Avg Score", value: `${popupData.stats.AVG_SCORE}`, sub: "Mean anomaly score" },
-                      { label: "Score Range", value: `${popupData.stats.MIN_SCORE} to ${popupData.stats.MAX_SCORE}`, sub: "Min to Max" },
+                      { label: "Temp Anomalies", value: `${popupData.stats.TEMP_ANOMALY_COUNT}`, sub: "Temperature events" },
+                      { label: "Vib Anomalies", value: `${popupData.stats.VIB_ANOMALY_COUNT}`, sub: "Vibration events" },
+                      { label: "Press Anomalies", value: `${popupData.stats.PRESS_ANOMALY_COUNT}`, sub: "Pressure events" },
                     ].map((s) => (
                       <div key={s.label} className="rounded-lg bg-surface-2/50 px-3 py-2">
                         <p className="text-[10px] text-muted">{s.label}</p>
@@ -360,22 +413,34 @@ export default function AnomalyHighlights({
                           <thead className="sticky top-0 bg-surface-2">
                             <tr className="border-b border-border text-left text-[10px] text-muted">
                               <th className="px-3 py-1.5 font-medium">Timestamp</th>
-                              <th className="px-3 py-1.5 font-medium text-right">Score</th>
                               <th className="px-3 py-1.5 font-medium text-right">Temp</th>
                               <th className="px-3 py-1.5 font-medium text-right">Vib</th>
                               <th className="px-3 py-1.5 font-medium text-right">Press</th>
                               <th className="px-3 py-1.5 font-medium text-right">Health</th>
+                              <th className="px-3 py-1.5 font-medium text-center">Type</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border/50">
                             {popupData.events.map((e, i) => (
                               <tr key={i} className="hover:bg-surface-2/30">
                                 <td className="px-3 py-1.5 text-muted tabular-nums">{e.TIMESTAMP.substring(0, 16)}</td>
-                                <td className="px-3 py-1.5 text-right tabular-nums text-warning font-medium">{e.ANOMALY_SCORE}</td>
-                                <td className="px-3 py-1.5 text-right tabular-nums">{e.TEMPERATURE}°C</td>
-                                <td className="px-3 py-1.5 text-right tabular-nums">{e.VIBRATION}</td>
-                                <td className="px-3 py-1.5 text-right tabular-nums">{e.PRESSURE}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  <span className={cn(e.IS_TEMPERATURE_ANOMALY ? "text-danger font-bold" : "text-muted/60")}>{e.TEMPERATURE}°C</span>
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  <span className={cn(e.IS_VIBRATION_ANOMALY ? "text-warning font-bold" : "text-muted/60")}>{e.VIBRATION}</span>
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  <span className={cn(e.IS_PRESSURE_ANOMALY ? "text-primary font-bold" : "text-muted/60")}>{e.PRESSURE}</span>
+                                </td>
                                 <td className="px-3 py-1.5 text-right tabular-nums">{e.HEALTH_PCT}%</td>
+                                <td className="px-3 py-1.5 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {e.IS_TEMPERATURE_ANOMALY && <Thermometer size={11} className="text-danger" />}
+                                    {e.IS_VIBRATION_ANOMALY && <Waves size={11} className="text-warning" />}
+                                    {e.IS_PRESSURE_ANOMALY && <Gauge size={11} className="text-primary" />}
+                                  </div>
+                                </td>
                               </tr>
                             ))}
                           </tbody>

@@ -60,14 +60,14 @@ export default function TrendChart({
 }: TrendChartProps) {
   if (!machineId) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="rounded-xl border border-border bg-surface p-4 h-full flex flex-col">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold">Trend Analysis</h2>
         </div>
-        <div className="flex h-[200px] flex-col items-center justify-center gap-2 text-muted">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted">
           <Activity size={32} className="opacity-40" />
           <p className="text-sm">Select a machine to view trend analysis</p>
-          <p className="text-[11px]">Sensor readings & anomaly markers over last 7 days</p>
+          <p className="text-[11px]">Sensor readings & anomaly markers (follows month/year filter)</p>
         </div>
       </div>
     );
@@ -75,9 +75,9 @@ export default function TrendChart({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="rounded-xl border border-border bg-surface p-4 h-full flex flex-col">
         <div className="h-5 w-40 animate-pulse rounded bg-surface-2" />
-        <div className="mt-3 h-[200px] animate-pulse rounded bg-surface-2/30" />
+        <div className="mt-3 flex-1 animate-pulse rounded bg-surface-2/30" />
       </div>
     );
   }
@@ -95,7 +95,7 @@ export default function TrendChart({
   const anomalies = chartData.filter((d) => d.IS_ANOMALY);
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-xl border border-border bg-surface p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold">
           Trend Analysis — {machineId}
@@ -105,7 +105,7 @@ export default function TrendChart({
         </span>
       </div>
 
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" className="flex-1">
         <ComposedChart
           data={chartData}
           margin={{ top: 5, right: 10, left: -15, bottom: 0 }}

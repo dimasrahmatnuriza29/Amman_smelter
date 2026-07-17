@@ -15,7 +15,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
-export function useKpi(refreshKey: number) {
+export function useKpi(refreshKey: number, month?: number, year?: number) {
   const [data, setData] = useState<KpiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,14 +24,18 @@ export function useKpi(refreshKey: number) {
     try {
       setLoading(true);
       setError(null);
-      const d = await fetchJson<KpiData>("/api/kpi");
+      const params = new URLSearchParams();
+      if (month) params.set("month", String(month));
+      if (year) params.set("year", String(year));
+      const qs = params.toString();
+      const d = await fetchJson<KpiData>(`/api/kpi${qs ? `?${qs}` : ""}`);
       setData(d);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [month, year]);
 
   useEffect(() => {
     load();
@@ -40,7 +44,7 @@ export function useKpi(refreshKey: number) {
   return { data, loading, error, reload: load };
 }
 
-export function useAssets(refreshKey: number) {
+export function useAssets(refreshKey: number, month?: number, year?: number) {
   const [data, setData] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,14 +53,18 @@ export function useAssets(refreshKey: number) {
     try {
       setLoading(true);
       setError(null);
-      const d = await fetchJson<Asset[]>("/api/assets");
+      const params = new URLSearchParams();
+      if (month) params.set("month", String(month));
+      if (year) params.set("year", String(year));
+      const qs = params.toString();
+      const d = await fetchJson<Asset[]>(`/api/assets${qs ? `?${qs}` : ""}`);
       setData(d);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [month, year]);
 
   useEffect(() => {
     load();
@@ -65,7 +73,12 @@ export function useAssets(refreshKey: number) {
   return { data, loading, error, reload: load };
 }
 
-export function useAssetDetail(machineId: string | null, refreshKey: number) {
+export function useAssetDetail(
+  machineId: string | null,
+  refreshKey: number,
+  month?: number,
+  year?: number
+) {
   const [data, setData] = useState<AssetDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +93,12 @@ export function useAssetDetail(machineId: string | null, refreshKey: number) {
       try {
         setLoading(true);
         setError(null);
+        const params = new URLSearchParams();
+        if (month) params.set("month", String(month));
+        if (year) params.set("year", String(year));
+        const qs = params.toString();
         const d = await fetchJson<AssetDetail>(
-          `/api/assets/${encodeURIComponent(machineId)}`
+          `/api/assets/${encodeURIComponent(machineId)}${qs ? `?${qs}` : ""}`
         );
         if (!cancelled) setData(d);
       } catch (e) {
@@ -93,14 +110,16 @@ export function useAssetDetail(machineId: string | null, refreshKey: number) {
     return () => {
       cancelled = true;
     };
-  }, [machineId, refreshKey]);
+  }, [machineId, refreshKey, month, year]);
 
   return { data, loading, error };
 }
 
 export function useTrend(
   machineId: string | null,
-  refreshKey: number
+  refreshKey: number,
+  month?: number,
+  year?: number
 ) {
   const [data, setData] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -116,8 +135,12 @@ export function useTrend(
       try {
         setLoading(true);
         setError(null);
+        const params = new URLSearchParams();
+        if (month) params.set("month", String(month));
+        if (year) params.set("year", String(year));
+        const qs = params.toString();
         const d = await fetchJson<TrendPoint[]>(
-          `/api/trend/${encodeURIComponent(machineId)}`
+          `/api/trend/${encodeURIComponent(machineId)}${qs ? `?${qs}` : ""}`
         );
         if (!cancelled) setData(d);
       } catch (e) {
@@ -129,12 +152,12 @@ export function useTrend(
     return () => {
       cancelled = true;
     };
-  }, [machineId, refreshKey]);
+  }, [machineId, refreshKey, month, year]);
 
   return { data, loading, error };
 }
 
-export function useAnomalies(refreshKey: number) {
+export function useAnomalies(refreshKey: number, month?: number, year?: number) {
   const [data, setData] = useState<AnomalySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,14 +166,18 @@ export function useAnomalies(refreshKey: number) {
     try {
       setLoading(true);
       setError(null);
-      const d = await fetchJson<AnomalySummary[]>("/api/anomalies");
+      const params = new URLSearchParams();
+      if (month) params.set("month", String(month));
+      if (year) params.set("year", String(year));
+      const qs = params.toString();
+      const d = await fetchJson<AnomalySummary[]>(`/api/anomalies${qs ? `?${qs}` : ""}`);
       setData(d);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [month, year]);
 
   useEffect(() => {
     load();

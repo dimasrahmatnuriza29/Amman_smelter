@@ -14,8 +14,36 @@ interface KpiRow {
   TOTAL_READINGS: number;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const month = searchParams.get("month");
+    const year = searchParams.get("year");
+
+    let dateFilter = "";
+    const binds: (string | number)[] = [];
+
+    if (month) {
+      dateFilter += " AND MONTH(TIMESTAMP) = ?";
+      binds.push(parseInt(month));
+    }
+    if (year) {
+      dateFilter += " AND YEAR(TIMESTAMP) = ?";
+      binds.push(parseInt(year));
+    }
+
+    let anomFilter = "";
+    const anomBinds: (string | number)[] = [];
+
+    if (month) {
+      anomFilter += " AND MONTH(TO_TIMESTAMP(TIMESTAMP / 1000000000)) = ?";
+      anomBinds.push(parseInt(month));
+    }
+    if (year) {
+      anomFilter += " AND YEAR(TO_TIMESTAMP(TIMESTAMP / 1000000000)) = ?";
+      anomBinds.push(parseInt(year));
+    }
+
     // Latest health per machine + counts
     const kpi = await querySnowflake<KpiRow>(`
       WITH latest AS (
@@ -26,6 +54,7 @@ export async function GET() {
           HEALTH_STATUS,
           ROW_NUMBER() OVER (PARTITION BY MACHINE_ID ORDER BY TIMESTAMP DESC) AS rn
         FROM POC_AMMAN.GOLD.FACT_SMELTER_SENSOR_DATA
+        WHERE 1=1 ${dateFilter}
       )
       SELECT
         ROUND(AVG(HEALTH_PCT), 1) AS AVG_HEALTH,
@@ -37,20 +66,21 @@ export async function GET() {
         0 AS TOTAL_READINGS
       FROM latest
       WHERE rn = 1
-    `);
+    `, binds);
 
     // Total anomaly count
     const anomalies = await querySnowflake<{ CNT: number }>(`
       SELECT COUNT(*) AS CNT
       FROM POC_AMMAN.GOLD.FACT_ANOMALY_DETECTION
-      WHERE IS_ANOMALY = TRUE
-    `);
+      WHERE IS_ANOMALY = TRUE ${anomFilter}
+    `, anomBinds);
 
     // Total readings
     const readings = await querySnowflake<{ CNT: number }>(`
       SELECT COUNT(*) AS CNT
       FROM POC_AMMAN.GOLD.FACT_SMELTER_SENSOR_DATA
-    `);
+      WHERE 1=1 ${dateFilter}
+    `, binds);
 
     return NextResponse.json({
       avgHealth: kpi[0]?.AVG_HEALTH ?? 0,

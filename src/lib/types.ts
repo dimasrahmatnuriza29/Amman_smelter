@@ -24,13 +24,21 @@ export interface Asset {
   TREND_PCT: number;
   ANOMALY_SCORE: number;
   IS_ANOMALY: boolean;
+  IS_TEMPERATURE_ANOMALY: boolean;
+  IS_VIBRATION_ANOMALY: boolean;
+  IS_PRESSURE_ANOMALY: boolean;
+  ANOMALY_HISTORY_COUNT: number;
+  TEMP_ANOMALY_COUNT: number;
+  VIB_ANOMALY_COUNT: number;
+  PRESS_ANOMALY_COUNT: number;
+  FIRST_ANOMALY_TS: string | null;
+  LAST_ANOMALY_TS: string | null;
 }
 
 export interface AssetDetail extends Asset {
-  HEALTH_7D_AGO: number;
-  TREND_7D: number;
-  HEALTH_30D_AGO: number;
-  TREND_30D: number;
+  TEMP_DEVIATION_PCT: number;
+  VIB_DEVIATION_PCT: number;
+  PRESS_DEVIATION_PCT: number;
   RUL_DAYS: number;
 }
 
@@ -40,8 +48,10 @@ export interface TrendPoint {
   VIBRATION: number;
   PRESSURE: number;
   HEALTH_PCT: number;
-  ANOMALY_SCORE: number;
   IS_ANOMALY: boolean;
+  IS_TEMPERATURE_ANOMALY: boolean;
+  IS_VIBRATION_ANOMALY: boolean;
+  IS_PRESSURE_ANOMALY: boolean;
 }
 
 export interface AnomalySummary {
@@ -51,6 +61,9 @@ export interface AnomalySummary {
   MAX_SCORE: number;
   AVG_SCORE: number;
   LATEST_ANOMALY_TS: number;
+  TEMP_ANOMALY_COUNT: number;
+  VIB_ANOMALY_COUNT: number;
+  PRESS_ANOMALY_COUNT: number;
 }
 
 export interface AnomalyDetail {
