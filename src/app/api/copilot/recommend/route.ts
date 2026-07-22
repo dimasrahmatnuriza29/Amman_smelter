@@ -71,7 +71,7 @@ RULES:
 10. DO NOT show your reasoning/thinking process. Output ONLY the final formatted result.
 11. Keep it concise — maximum 300 words total.
 12. Health_pct is the asset health percentage (higher = better). HEALTH_STATUS is derived from health_pct bands: 80-100=HEALTHY, 55-79=WARNING, 30-54=BORDERLINE, 0-29=CRITICAL.
-13. Use markdown formatting: **bold** for key values, ## for section headers, - bullet lists for actions, > for notes/warnings.
+13. Use markdown formatting: **bold** for key values, ## for section headers, - bullet lists for actions (do NOT use □ or other checkbox symbols, use - only), > for notes/warnings.
 14. You can include a chart by outputting a fenced code block with language \`chart\` containing JSON: {"type":"bar","title":"Sensor Status","data":[{"name":"Temp","value":1013},{"name":"Vib","value":5.2},{"name":"Press","value":3.0}],"xKey":"name","yKey":"value","color":"#f59e0b"}. Supported types: bar, line, pie. ONLY include a chart when anomaly is detected and sensor values need visual comparison. Do NOT include chart for healthy status. Max 1 chart.
 
 HEALTHY OUTPUT FORMAT (use when IS_ANOMALY is NOT TRUE):
@@ -92,9 +92,9 @@ ANOMALY OUTPUT FORMAT (use when IS_ANOMALY=TRUE):
   2. [Cause name] — [XX]% confidence
      Signals: [which specific anomaly flag(s) + actual sensor value + normal range from guide]
 ✅ Recommended Actions:
-  □ [Action 1]
-  □ [Action 2]
-  □ [Action 3]
+  - [Action 1]
+  - [Action 2]
+  - [Action 3]
 ⚠ Priority: [Urgent/High/Medium/Low] | ETA: [timeframe]
    Reason: [why this priority]`;
 
