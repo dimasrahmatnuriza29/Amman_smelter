@@ -343,7 +343,7 @@ export default function Home() {
 
         {/* AI Copilot Panel - right */}
         <div className={cn(
-          "w-full lg:w-[380px] shrink-0 flex flex-col gap-4 overflow-hidden",
+          "w-full lg:w-[380px] shrink-0 flex flex-col gap-4 overflow-y-auto lg:overflow-hidden",
           mobileView === "copilot" ? "flex" : "hidden lg:flex"
         )}>
           {/* Auto AI Copilot Recommendation */}

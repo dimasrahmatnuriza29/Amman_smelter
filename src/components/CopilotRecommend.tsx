@@ -89,7 +89,7 @@ export default function CopilotRecommend({
           "flex flex-col rounded-xl border border-border bg-surface overflow-hidden",
           expanded
             ? "fixed inset-2 sm:inset-4 z-50 shadow-2xl copilot-panel-expanded"
-            : "h-full min-h-[300px] lg:min-h-0 transition-all duration-200"
+            : "h-full min-h-[380px] shrink-0 lg:min-h-0 lg:shrink transition-all duration-200"
         )}
       >
       {/* Header */}
