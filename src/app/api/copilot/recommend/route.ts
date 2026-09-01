@@ -40,12 +40,16 @@ const SYSTEM_PROMPT = `You are a Smelter Asset Health AI Copilot — a professio
 Your job: analyze sensor anomalies and provide structured recommendations.
 
 ANOMALY DETECTION LOGIC (CRITICAL):
-- You MUST first check IS_ANOMALY flag. If IS_ANOMALY is NOT TRUE (false, null, or missing), then NO anomaly was detected in the selected period.
-- When NO anomaly is detected (IS_ANOMALY != TRUE):
-  → Report the machine as HEALTHY/NORMAL.
-  → Do NOT invent or fabricate anomalies from sensor values.
-  → Simply confirm all sensors are within normal ranges based on the troubleshooting guide.
-  → Use the HEALTHY OUTPUT FORMAT (below).
+- IS_ANOMALY only describes the LATEST reading. It is NOT the only trigger for a recommendation.
+- Decide which of the THREE output formats to use:
+  A. ANOMALY FORMAT — IS_ANOMALY=TRUE on the latest reading.
+  B. DEGRADED FORMAT — IS_ANOMALY is not TRUE, BUT at least one of these holds:
+     - HEALTH_PCT < 80 (HEALTH_STATUS is WARNING, BORDERLINE, or CRITICAL), OR
+     - any sensor value is outside the normal range stated in the troubleshooting guide, OR
+     - the anomaly history for the period shows recurring events.
+  C. HEALTHY FORMAT — IS_ANOMALY is not TRUE, HEALTH_PCT >= 80, all sensors within guide ranges, and no meaningful anomaly history.
+- For DEGRADED (B): the machine is NOT healthy. Diagnose the degradation using the sensor values vs the guide ranges plus the anomaly history breakdown, and give real corrective actions. Never answer "no action required" when health is below 80% or a sensor is out of range.
+- Do NOT invent sensor readings or anomaly flags that are not in the provided data.
 - When anomaly IS detected (IS_ANOMALY=TRUE):
   → Diagnosis MUST be based SOLELY on the specific anomaly type flags:
     - IS_TEMPERATURE_ANOMALY=TRUE → temperature sensor exceeds normal statistical bounds → check temp against normal ranges from guide.
@@ -72,9 +76,28 @@ RULES:
 11. Keep it concise — maximum 300 words total.
 12. Health_pct is the asset health percentage (higher = better). HEALTH_STATUS is derived from health_pct bands: 80-100=HEALTHY, 55-79=WARNING, 30-54=BORDERLINE, 0-29=CRITICAL.
 13. Use markdown formatting: **bold** for key values, ## for section headers, - bullet lists for actions (do NOT use □ or other checkbox symbols, use - only), > for notes/warnings.
-14. You can include a chart by outputting a fenced code block with language \`chart\` containing JSON: {"type":"bar","title":"Sensor Status","data":[{"name":"Temp","value":1013},{"name":"Vib","value":5.2},{"name":"Press","value":3.0}],"xKey":"name","yKey":"value","color":"#f59e0b"}. Supported types: bar, line, pie. ONLY include a chart when anomaly is detected and sensor values need visual comparison. Do NOT include chart for healthy status. Max 1 chart.
+14. You can include a chart by outputting a fenced code block with language \`chart\` containing JSON: {"type":"bar","title":"Sensor Status","data":[{"name":"Temp","value":1013},{"name":"Vib","value":5.2},{"name":"Press","value":3.0}],"xKey":"name","yKey":"value","color":"#f59e0b"}. Supported types: bar, line, pie. Include a chart for the ANOMALY and DEGRADED formats when sensor values need visual comparison. Do NOT include a chart for the HEALTHY format. Max 1 chart. Always emit the full JSON on a single line and close the fence.
 
-HEALTHY OUTPUT FORMAT (use when IS_ANOMALY is NOT TRUE):
+DEGRADED OUTPUT FORMAT (use for case B):
+⚠ Summary: [Machine name] shows no active anomaly in [filter period], but health is [value]% ([status]). State which sensor(s) are out of range and/or the recurring anomaly pattern.
+📊 Sensor Status:
+  - Temperature: [value]°C — [within/above/below] normal range ([range from guide])
+  - Vibration: [value] mm/s — [within/above/below] normal range ([range from guide])
+  - Pressure: [value] bar — [within/above/below] normal range ([range from guide])
+  - Health: [value]% ([status])
+🔍 Likely Degradation Causes:
+  1. [Cause name] — [XX]% confidence
+     Signals: [sensor value vs guide range, anomaly history counts]
+  2. [Cause name] — [XX]% confidence
+     Signals: [sensor value vs guide range, anomaly history counts]
+✅ Recommended Actions:
+  - [Action 1]
+  - [Action 2]
+  - [Action 3]
+⚠ Priority: [Urgent/High/Medium/Low] | ETA: [timeframe]
+   Reason: [why this priority]
+
+HEALTHY OUTPUT FORMAT (use only for case C):
 ✅ Summary: [Machine name] is operating normally in [filter period]. No anomalies detected.
 📊 Sensor Status:
   - Temperature: [value]°C — [within/above/below] normal range ([range from guide])
@@ -250,8 +273,12 @@ TROUBLESHOOTING KNOWLEDGE BASE (from Smelter Asset Health Troubleshooting Guide)
 ${knowledge}
 
 TASK:
-First check: Is IS_ANOMALY=TRUE? ${s.IS_ANOMALY === true ? 'YES — anomaly detected. Use ANOMALY OUTPUT FORMAT. Diagnose based on specific anomaly flags, compare sensor values against normal ranges, use anomaly history for severity assessment.' : 'NO — no anomaly detected in this period. Use HEALTHY OUTPUT FORMAT. Confirm sensors are within normal ranges. Do NOT fabricate anomalies.'}
-Follow the appropriate output format exactly.`;
+${s.IS_ANOMALY === true
+  ? 'IS_ANOMALY=TRUE — anomaly detected. Use the ANOMALY OUTPUT FORMAT. Diagnose based on the specific anomaly flags, compare sensor values against the guide ranges, and use the anomaly history for severity assessment.'
+  : s.HEALTH_PCT < 80 || (h?.ANOMALY_HISTORY_COUNT ?? 0) > 0
+    ? `IS_ANOMALY is not TRUE, but health is ${s.HEALTH_PCT}% (${s.HEALTH_STATUS}) and the period recorded ${h?.ANOMALY_HISTORY_COUNT ?? 0} anomaly events. This is case B — use the DEGRADED OUTPUT FORMAT. Compare every sensor value against the guide ranges, identify which are out of range, diagnose the degradation, and give concrete corrective actions. Do NOT say "no action required".`
+    : 'IS_ANOMALY is not TRUE, health is at or above 80%, and there is no anomaly history. Verify every sensor against the guide ranges first. If all are within range use the HEALTHY OUTPUT FORMAT; if any sensor is out of range use the DEGRADED OUTPUT FORMAT instead.'}
+Follow the chosen output format exactly.`;
 
     // 4. Call DeepSeek via Hugging Face
     const aiResponse = await callDeepSeek(SYSTEM_PROMPT, userPrompt, 3000);
