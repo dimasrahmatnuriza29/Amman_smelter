@@ -403,7 +403,7 @@ Answer based on the data and knowledge above. If the user asks for a dashboard s
       : userPrompt;
 
     // 4. Call DeepSeek
-    const aiResponse = await callDeepSeek(SYSTEM_PROMPT, fullPrompt, 768);
+    const aiResponse = await callDeepSeek(SYSTEM_PROMPT, fullPrompt, 3000);
 
     return NextResponse.json({
       response: aiResponse,

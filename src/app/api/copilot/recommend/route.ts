@@ -254,7 +254,7 @@ First check: Is IS_ANOMALY=TRUE? ${s.IS_ANOMALY === true ? 'YES — anomaly dete
 Follow the appropriate output format exactly.`;
 
     // 4. Call DeepSeek via Hugging Face
-    const aiResponse = await callDeepSeek(SYSTEM_PROMPT, userPrompt, 2048);
+    const aiResponse = await callDeepSeek(SYSTEM_PROMPT, userPrompt, 3000);
 
     return NextResponse.json({
       machineId: s.MACHINE_ID,
