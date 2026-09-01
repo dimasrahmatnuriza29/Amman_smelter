@@ -55,7 +55,7 @@ export default function Home() {
   const [healthStatus, setHealthStatus] = useState("All");
   const [anomalyOnly, setAnomalyOnly] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(0);
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedYear, setSelectedYear] = useState(2024);
 
   // Selected machine
   const [selectedId, setSelectedId] = useState<string | null>(null);
