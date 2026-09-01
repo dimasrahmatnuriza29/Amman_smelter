@@ -121,7 +121,7 @@ export default function AssetDetailPanel({ data, loading }: AssetDetailProps) {
       </div>
 
       {/* Sensor Metrics */}
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-2">
         <MetricCard
           icon={Thermometer}
           label="Temperature"

@@ -159,8 +159,8 @@ export default function CopilotChat({ machineId, expanded, onExpand, onClose, fi
         className={cn(
           "flex flex-col rounded-xl border border-border bg-surface overflow-hidden",
           expanded
-            ? "fixed inset-4 z-50 copilot-panel-expanded-chat"
-            : "h-full transition-all duration-200"
+            ? "fixed inset-2 sm:inset-4 z-50 copilot-panel-expanded-chat"
+            : "h-full min-h-[300px] lg:min-h-0 transition-all duration-200"
         )}
       >
       {/* Header */}

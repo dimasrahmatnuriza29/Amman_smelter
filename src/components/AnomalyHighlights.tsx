@@ -234,7 +234,7 @@ export default function AnomalyHighlights({
             className="copilot-backdrop fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={closePopup}
           />
-          <div className="copilot-panel-expanded fixed inset-4 z-50 flex flex-col rounded-xl border border-border bg-surface overflow-hidden">
+          <div className="copilot-panel-expanded fixed inset-2 sm:inset-4 z-50 flex flex-col rounded-xl border border-border bg-surface overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div className="flex items-center gap-3">

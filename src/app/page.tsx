@@ -7,6 +7,8 @@ import {
   Activity,
   AlertTriangle,
   ChevronDown,
+  LayoutDashboard,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Header from "@/components/Header";
@@ -63,6 +65,9 @@ export default function Home() {
   // Expand state for copilot panels
   const [recommendExpanded, setRecommendExpanded] = useState(false);
   const [chatExpanded, setChatExpanded] = useState(false);
+
+  // Mobile view toggle: "dashboard" | "copilot"
+  const [mobileView, setMobileView] = useState<"dashboard" | "copilot">("dashboard");
 
   // Data hooks — month and year filters work independently
   const filterMonth = selectedMonth > 0 ? selectedMonth : undefined;
@@ -169,11 +174,41 @@ export default function Home() {
         onRefresh={handleRefresh}
         loading={loading}
       />
-      <main className="flex flex-1 overflow-hidden gap-4 p-4">
+      {/* Mobile view toggle */}
+      <div className="flex lg:hidden border-b border-border bg-surface/50">
+        <button
+          onClick={() => setMobileView("dashboard")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-2 py-2.5 text-xs font-medium transition-colors",
+            mobileView === "dashboard"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted hover:text-foreground"
+          )}
+        >
+          <LayoutDashboard size={14} />
+          Dashboard
+        </button>
+        <button
+          onClick={() => setMobileView("copilot")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-2 py-2.5 text-xs font-medium transition-colors",
+            mobileView === "copilot"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted hover:text-foreground"
+          )}
+        >
+          <Bot size={14} />
+          AI Copilot
+        </button>
+      </div>
+      <main className="flex flex-1 flex-col lg:flex-row overflow-hidden gap-4 p-4">
         {/* Dashboard Monitoring - left */}
-        <div className="flex-1 flex flex-col overflow-hidden rounded-xl border border-border bg-surface/40">
+        <div className={cn(
+          "flex-1 flex flex-col overflow-hidden rounded-xl border border-border bg-surface/40",
+          mobileView === "dashboard" ? "flex" : "hidden lg:flex"
+        )}>
           {/* Filter Bar */}
-          <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 border-b border-border px-3 sm:px-4 py-3">
             <div className="flex items-center gap-2 text-muted">
               <Filter size={16} />
               <span className="text-xs font-medium">Filters</span>
@@ -261,9 +296,9 @@ export default function Home() {
               <ChevronDown size={12} className="text-muted" />
             </div>
 
-            <div className="flex-1" />
+            <div className="hidden sm:flex flex-1" />
 
-            <span className="text-[11px] text-muted">
+            <span className="text-[11px] text-muted ml-auto sm:ml-0">
               {activeFilterCount > 0
                 ? `${activeFilterCount} filter(s) active`
                 : "No filters"}
@@ -271,7 +306,7 @@ export default function Home() {
           </div>
 
           {/* Dashboard Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
             {/* KPI Cards */}
             <KpiCards data={kpiData ?? filteredKpi} loading={kpiLoading || assetsLoading} />
 
@@ -286,7 +321,7 @@ export default function Home() {
             />
 
             {/* Detail + Trend side by side */}
-            <div className="grid grid-cols-2 gap-4 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
               <AssetDetailPanel data={detailData} loading={detailLoading} />
               <TrendChart
                 data={trendData}
@@ -307,7 +342,10 @@ export default function Home() {
         </div>
 
         {/* AI Copilot Panel - right */}
-        <div className="w-[380px] shrink-0 flex flex-col gap-4 overflow-hidden">
+        <div className={cn(
+          "w-full lg:w-[380px] shrink-0 flex flex-col gap-4 overflow-hidden",
+          mobileView === "copilot" ? "flex" : "hidden lg:flex"
+        )}>
           {/* Auto AI Copilot Recommendation */}
           <CopilotRecommend
             machineId={selectedId}

@@ -10,16 +10,16 @@ interface HeaderProps {
 
 export default function Header({ lastRefresh, onRefresh, loading }: HeaderProps) {
   return (
-    <header className="flex items-center justify-between px-6 h-16 border-b border-border bg-surface/50">
-      <div>
-        <h1 className="text-lg font-semibold">Smelter Asset Health Copilot</h1>
-        <p className="text-xs text-muted">
+    <header className="flex items-center justify-between px-3 sm:px-6 h-14 sm:h-16 border-b border-border bg-surface/50">
+      <div className="min-w-0">
+        <h1 className="text-sm sm:text-lg font-semibold truncate">Smelter Asset Health Copilot</h1>
+        <p className="hidden sm:block text-xs text-muted">
           AI Smelter — Predictive &amp; Prescriptive Asset Maintenance
         </p>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="text-right">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="text-right hidden sm:block">
           <p className="text-[11px] text-muted">Last Refresh</p>
           <p className="text-xs font-medium">{lastRefresh ?? "—"}</p>
         </div>

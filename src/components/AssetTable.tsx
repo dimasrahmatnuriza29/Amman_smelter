@@ -156,7 +156,8 @@ export default function AssetTable({
         <h2 className="text-sm font-semibold">Asset Health Overview</h2>
         <span className="text-[11px] text-muted">{assets.length} machines · {assets[0]?.TIMESTAMP?.substring(0, 10) || "—"}</span>
       </div>
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full text-sm min-w-[600px]">
         <thead>
           <tr className="border-b border-border text-left text-[11px] text-muted">
             <th className="px-4 py-2 font-medium">Machine</th>
@@ -385,6 +386,7 @@ export default function AssetTable({
           })}
         </tbody>
       </table>
+      </div>
 
       {/* Anomaly Detail Popup */}
       {popup && (
@@ -549,7 +551,7 @@ export default function AssetTable({
           onClick={() => setHistoryPopup(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-xl border border-border bg-surface p-5 shadow-2xl"
+            className="w-full max-w-2xl mx-4 rounded-xl border border-border bg-surface p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

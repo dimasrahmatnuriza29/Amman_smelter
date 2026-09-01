@@ -26,7 +26,7 @@ interface CardConfig {
 export default function KpiCards({ data, loading }: KpiCardsProps) {
   if (loading || !data) {
     return (
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
@@ -81,7 +81,7 @@ export default function KpiCards({ data, loading }: KpiCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
       {cards.map((card) => {
         const Icon = card.icon;
         return (

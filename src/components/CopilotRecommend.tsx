@@ -88,8 +88,8 @@ export default function CopilotRecommend({
         className={cn(
           "flex flex-col rounded-xl border border-border bg-surface overflow-hidden",
           expanded
-            ? "fixed inset-4 z-50 shadow-2xl copilot-panel-expanded"
-            : "h-full transition-all duration-200"
+            ? "fixed inset-2 sm:inset-4 z-50 shadow-2xl copilot-panel-expanded"
+            : "h-full min-h-[300px] lg:min-h-0 transition-all duration-200"
         )}
       >
       {/* Header */}
